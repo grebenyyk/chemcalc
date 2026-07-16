@@ -1,7 +1,7 @@
 # chemcalc
 
-Hommage to the old chemcalc.org 
-that allows to copy the molecular weight to the clipboard — a technology too advanced by today's standards.
+An hommage to the old chemcalc.org 
+that allows you to copy the molecular weight to the clipboard — a technology too advanced by today's standards.
 
 ## What it computes
 
