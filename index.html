@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>chemcalc — molecular formula calculator</title>
+    <link rel="stylesheet" href="./css/style.css" />
+  </head>
+  <body>
+    <h1>chemcalc</h1>
+    <p class="lede">
+      Molecular formula calculator. Type a formula and the results update as you
+      type — no need to press Enter.
+    </p>
+
+    <p>
+      <label for="mf">Formula:</label>
+      <input
+        id="mf"
+        type="text"
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+        placeholder="e.g. C8H10N4O2"
+        autofocus
+      />
+    </p>
+    <p id="error" class="error"></p>
+    <p id="warnings" class="warnings"></p>
+
+    <p class="examples">
+      Examples:
+      <a href="#" data-mf="C8H10N4O2">caffeine</a>,
+      <a href="#" data-mf="C6H12O6">glucose</a>,
+      <a href="#" data-mf="CuSO4.5H2O">copper sulfate pentahydrate</a>,
+      <a href="#" data-mf="C16H18N2O4S">penicillin G</a>,
+      <a href="#" data-mf="[NH4]+">ammonium</a>,
+      <a href="#" data-mf="13C6H12">labelled</a>.
+    </p>
+
+    <div id="results" hidden>
+      <h2>Formula</h2>
+      <p id="formula" class="formula"></p>
+
+      <h2>Mass</h2>
+      <div class="table-wrap">
+        <table>
+          <tbody id="masses"></tbody>
+        </table>
+      </div>
+
+      <h2>Elemental composition</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="l">Element</th>
+              <th>Atoms</th>
+              <th>Mass (Da)</th>
+              <th>%</th>
+            </tr>
+          </thead>
+          <tbody id="composition"></tbody>
+        </table>
+      </div>
+
+      <h2>Isotopic distribution</h2>
+      <canvas id="chart"></canvas>
+      <div class="table-wrap">
+        <table>
+          <thead id="peaks-head"></thead>
+          <tbody id="peaks"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <p class="about">
+      Monoisotopic mass uses the lightest isotope of each element (the first peak
+      of the distribution); average mass uses the isotope-weighted mean. Isotope
+      data: CIAAW/AME representative isotopic composition.
+    </p>
+
+    <script type="module" src="./js/app.js"></script>
+  </body>
+</html>
