@@ -41,6 +41,62 @@ const isUpper = (c) => c >= "A" && c <= "Z";
 const isLower = (c) => c >= "a" && c <= "z";
 const isSign = (c) => c === "+" || c === "-";
 const isWs = (c) => c === " " || c === "\t" || c === "\n" || c === "\r";
+const isLetter = (c) => isUpper(c) || isLower(c);
+
+// Case-insensitive element input: normalize a formula to canonical element case
+// (e.g. "fe(oh)3" / "FE(OH)3" -> "Fe(OH)3"), preserving length so error
+// positions stay valid. Disambiguation follows standard chemistry convention:
+// a properly-cased two-letter symbol is honored ("Co" = cobalt), but two
+// adjacent letters that are EACH valid single-letter elements are kept separate
+// ("CO"/"co" = carbon+oxygen, so "CO2" is not read as cobalt).
+function normalizeCase(input) {
+  let out = "";
+  let i = 0;
+  const n = input.length;
+  while (i < n) {
+    if (isLetter(input[i])) {
+      let j = i;
+      while (j < n && isLetter(input[j])) j++;
+      out += segmentRun(input.slice(i, j), i);
+      i = j;
+    } else {
+      out += input[i];
+      i++;
+    }
+  }
+  return out;
+}
+
+function segmentRun(run, basePos) {
+  let out = "";
+  let p = 0;
+  while (p < run.length) {
+    const L1 = run[p];
+    const L2 = run[p + 1];
+    const u1 = L1.toUpperCase();
+    if (L2 !== undefined && L1 === u1 && isLower(L2) && SYMBOLS.has(u1 + L2)) {
+      out += u1 + L2; // proper-case two-letter symbol: Co, Fe, Na, Cl, ...
+      p += 2;
+      continue;
+    }
+    if (L2 !== undefined) {
+      const c2 = u1 + L2.toLowerCase();
+      const bothSingle = SYMBOLS.has(u1) && SYMBOLS.has(L2.toUpperCase());
+      if (SYMBOLS.has(c2) && !bothSingle) {
+        out += c2; // two-letter symbol reached via wrong case: fe/FE/cu/cl/na ...
+        p += 2;
+        continue;
+      }
+    }
+    if (SYMBOLS.has(u1)) {
+      out += u1; // single-letter element
+      p += 1;
+      continue;
+    }
+    throw new ParseError(`Unknown element "${run.slice(p, p + 2).trim()}"`, basePos + p);
+  }
+  return out;
+}
 
 /**
  * Parse a molecular formula string.
@@ -49,10 +105,11 @@ const isWs = (c) => c === " " || c === "\t" || c === "\n" || c === "\r";
  *   tagged: [{ element, massNumber, count }] specific-isotope atoms
  */
 export function parseFormula(input) {
-  const s = String(input);
+  const s = normalizeCase(String(input));
   let i = 0;
   const counts = {};
   const tagged = [];
+  const order = [];
   const warnings = [];
   let charge = 0;
 
@@ -72,6 +129,21 @@ export function parseFormula(input) {
     return parseInt(s.slice(start, i), 10);
   }
 
+  // A count/multiplier: a run of digits NOT immediately followed by a +/- sign.
+  // Digits immediately followed by a sign form a charge instead (e.g. "(P)22+"
+  // -> charge +22, not P22 with charge +1).
+  function readCount() {
+    skipWs();
+    const start = i;
+    while (!eof() && isDigit(s[i])) i++;
+    if (i === start) return null;
+    if (!eof() && isSign(s[i])) {
+      i = start; // leave the digits for charge parsing
+      return null;
+    }
+    return parseInt(s.slice(start, i), 10);
+  }
+
   function readElement() {
     if (eof() || !isUpper(s[i])) err("Expected an element symbol");
     const start = i;
@@ -80,10 +152,13 @@ export function parseFormula(input) {
     if (!eof() && isLower(s[i])) sym += s[i]; // tentative two-letter symbol
     if (SYMBOLS.has(sym)) {
       if (sym.length === 2) i++;
-      return sym;
+    } else if (SYMBOLS.has(c1)) {
+      sym = c1; // one-letter symbol; stray lowercase follows
+    } else {
+      err(`Unknown element "${sym}"`, start);
     }
-    if (SYMBOLS.has(c1)) return c1; // one-letter symbol; stray lowercase follows
-    err(`Unknown element "${sym}"`, start);
+    if (!order.includes(sym)) order.push(sym); // first-appearance order for display
+    return sym;
   }
 
   // Match a charge pattern starting at index j (no side effects).
@@ -166,7 +241,7 @@ export function parseFormula(input) {
       if (eof() || s[i] !== close)
         err(`Expected "${close}"`);
       i++;
-      const mult = (skipWs(), readInt()) ?? 1;
+      const mult = readCount() ?? 1;
       return scaleFrag(inner, mult);
     }
 
@@ -174,8 +249,7 @@ export function parseFormula(input) {
     let isotopeNum = null;
     if (isDigit(c)) isotopeNum = readInt();
     const sym = readElement();
-    skipWs();
-    const mult = readInt() ?? 1;
+    const mult = readCount() ?? 1;
     if (isotopeNum !== null) {
       // validate that this mass number exists for the element (warn, don't throw,
       // so mass calc can still surface a clear message)
@@ -213,7 +287,7 @@ export function parseFormula(input) {
     if (JOINERS.has(s[i])) {
       i++;
       skipWs();
-      const coef = readInt(); // coefficient after a joiner (may be absent -> 1)
+      const coef = readCount(); // coefficient after a joiner (may be absent -> 1)
       const term = parseUnitSeq();
       if (coef !== null) scaleFrag(term, coef);
       mergeFrag(result, term);
@@ -227,6 +301,7 @@ export function parseFormula(input) {
   }
 
   result.charge = charge;
+  result.order = order;
   result.warnings = warnings;
   return result;
 }

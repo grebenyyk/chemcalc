@@ -22,15 +22,13 @@ function esc(s) {
     .replace(/>/g, "&gt;");
 }
 
-// ---- formula display (Hill order: C, H, then alphabetical) ----
-function hillKey(s) {
-  if (s === "C") return 0;
-  if (s === "H") return 1;
-  return 2 + s.charCodeAt(0);
-}
+// ---- formula display: elements shown in the order first typed (not sorted).
+//      The composition table below is sorted separately. ----
 function formulaHtml(parsed) {
-  const syms = new Set([...Object.keys(parsed.counts), ...parsed.tagged.map((t) => t.element)]);
-  const ordered = [...syms].sort((a, b) => hillKey(a) - hillKey(b));
+  const present = new Set([...Object.keys(parsed.counts), ...parsed.tagged.map((t) => t.element)]);
+  const ordered = [];
+  for (const s of parsed.order || []) if (present.has(s) && !ordered.includes(s)) ordered.push(s);
+  for (const s of present) if (!ordered.includes(s)) ordered.push(s);
   let html = "";
   for (const sym of ordered) {
     const tm = new Map();
@@ -50,13 +48,13 @@ function formulaHtml(parsed) {
 
 function renderMasses(a) {
   const rows = [
+    ["Molecular weight (average mass)", fmt(a.averageMass)],
     ["Monoisotopic mass", fmt(a.monoisotopicMass)],
-    ["Average mass (molecular weight)", fmt(a.averageMass)],
     ["Nominal mass", a.nominalMass],
     ["Total atoms", a.totalAtoms],
     ["Charge", a.charge === 0 ? "0" : (a.charge > 0 ? "+" : "") + a.charge],
-    ["m/z (monoisotopic)", a.mzMono !== null ? fmt(a.mzMono) : "—"],
   ];
+  if (a.mzMono !== null) rows.push(["m/z (monoisotopic)", fmt(a.mzMono)]);
   $("masses").innerHTML = rows
     .map(([k, v]) => `<tr><td class="l">${esc(k)}</td><td>${v}</td></tr>`)
     .join("");
