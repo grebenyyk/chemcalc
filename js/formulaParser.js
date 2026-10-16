@@ -8,7 +8,9 @@
 //   unit         := '(' unitSeq ')' count?
 //                 | '[' unitSeq ']' count?
 //                 | isotopeNum? ELEMENT count?
-//   count        := [0-9]+
+//   count        := number                  -- decimals ("Fe0.5O") and fractions
+//                                            ("1/2") are accepted; see readCount
+//   number       := [0-9]+ ( '.' [0-9]+ )? ( '/' [0-9]+ )?
 //   isotopeNum   := [0-9]+   (binds to the single element that follows)
 //   joiner       := '.' | '·' | '∙' | '*' | '•'   (hydrate / adduct)
 //   trailingCharge := '^' <charge> | <charge>     (see matchChargeAt)
@@ -20,6 +22,11 @@
 //    is an isotopic prefix, e.g. "13C6H12", "2H2O" (heavy water = D2O).
 //  * Charges use '^' anywhere, or a +/- form only when followed by end/joiner.
 //  * Charge affects m/z only, never the neutral mass.
+//  * Non-integer counts: "Fe0.5O", "(C2H4)0.6", "CuSO4·1/2H2O". A dot between
+//    two digit runs is a decimal point when the integer part is 0 or 1, when at
+//    a joiner-coefficient position, or when no term can follow (e.g. "O6.5" at
+//    the end); otherwise it is a hydrate joiner ("CuSO4.5H2O"). A fraction
+//    after the dot-digits ("SO4.1/2H2O") also reads as a joiner coefficient.
 
 import { ELEMENTS } from "./elements.js";
 
@@ -101,11 +108,13 @@ function segmentRun(run, basePos) {
 /**
  * Parse a molecular formula string.
  * @returns {{ counts:Object, tagged:Array, charge:number, warnings:Array }}
- *   counts: symbol -> number of natural-abundance atoms
+ *   counts: symbol -> atom count (integer or fractional)
  *   tagged: [{ element, massNumber, count }] specific-isotope atoms
  */
 export function parseFormula(input) {
-  const s = normalizeCase(String(input));
+  // decimal commas are accepted and normalised ("Fe0,5" -> "Fe0.5");
+  // length-preserving, so error positions stay valid
+  const s = normalizeCase(String(input)).replace(/(\d),(\d)/g, "$1.$2");
   let i = 0;
   const counts = {};
   const tagged = [];
@@ -129,19 +138,67 @@ export function parseFormula(input) {
     return parseInt(s.slice(start, i), 10);
   }
 
-  // A count/multiplier: a run of digits NOT immediately followed by a +/- sign.
-  // Digits immediately followed by a sign form a charge instead (e.g. "(P)22+"
-  // -> charge +22, not P22 with charge +1).
-  function readCount() {
+  // Would a term (element symbol or bracketed group) start at index k, after
+  // optional whitespace?
+  function termStartsAt(k) {
+    while (k < s.length && isWs(s[k])) k++;
+    if (k >= s.length) return false;
+    const c = s[k];
+    return isUpper(c) || c === "(" || c === "[";
+  }
+
+  // A count/multiplier: a number NOT immediately followed by a +/- sign (those
+  // digits form a charge instead, e.g. "(P)22+" -> charge +22, not P22 with
+  // charge +1). Non-integer counts are accepted as decimals ("Fe0.5O") or
+  // fractions ("1/2"); a decimal comma is normalised up front ("Fe0,5").
+  //
+  // Dot ambiguity, digit.dot.digit (decimal point vs hydrate/adduct joiner):
+  // the dot is read as a decimal point when
+  //   * `coefPosition` — right after a joiner ("CuSO4*2.5H2O"), unambiguous, or
+  //   * the integer part is 0 or 1 ("Fe0.5O", "Co1.5O" — the common case), or
+  //   * nothing that could start a term follows the fractional digits
+  //     ("YBa2Cu3O6.5" at end of formula, "(Fe2.5)O3" before ")");
+  // otherwise the dot is left for the joiner branch: "CuSO4.5H2O" = pentahydrate.
+  // In the last-resort case a warning is emitted so the reading stays visible.
+  function readCount(coefPosition = false) {
     skipWs();
     const start = i;
-    while (!eof() && isDigit(s[i])) i++;
-    if (i === start) return null;
+    const intPart = readInt();
+    if (intPart === null) return null;
     if (!eof() && isSign(s[i])) {
       i = start; // leave the digits for charge parsing
       return null;
     }
-    return parseInt(s.slice(start, i), 10);
+    let value = intPart;
+    if (peek() === "." && isDigit(s[i + 1])) {
+      let k = i + 1;
+      while (k < s.length && isDigit(s[k])) k++;
+      // "4.1/2" reads as coefficient 1/2 after a joiner (hemihydrate), not as
+      // the odd product 4.1/2
+      const fracNext = s[k] === "/" && isDigit(s[k + 1]);
+      const asDecimal = coefPosition || (!fracNext && (intPart <= 1 || !termStartsAt(k)));
+      if (asDecimal) {
+        i = k;
+        value = parseFloat(s.slice(start, i));
+        if (!coefPosition && intPart > 1)
+          warnings.push(
+            `Read "${s.slice(start, i)}" as a decimal subscript; use a "·" or "*" joiner if you meant a hydrate/adduct coefficient.`
+          );
+      }
+    }
+    if (peek() === "/") {
+      let k = i + 1;
+      const ds = k;
+      while (k < s.length && isDigit(s[k])) k++;
+      if (k > ds) {
+        const den = parseInt(s.slice(ds, k), 10);
+        if (den > 0) {
+          i = k;
+          value /= den;
+        }
+      }
+    }
+    return value;
   }
 
   function readElement() {
@@ -287,7 +344,7 @@ export function parseFormula(input) {
     if (JOINERS.has(s[i])) {
       i++;
       skipWs();
-      const coef = readCount(); // coefficient after a joiner (may be absent -> 1)
+      const coef = readCount(true); // coefficient after a joiner (may be absent -> 1)
       const term = parseUnitSeq();
       if (coef !== null) scaleFrag(term, coef);
       mergeFrag(result, term);

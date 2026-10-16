@@ -26,6 +26,8 @@ export function isotopeMass(el, massNumber) {
 
 // Aggregate a parsed formula (natural counts + specific-isotope tags) into a
 // per-element breakdown with both monoisotopic and average contributions.
+// Counts may be fractional (non-stoichiometric formulas); all mass math here is
+// linear in the counts, so fractional atoms need no special handling.
 function elementContributions(parsed) {
   const map = new Map(); // symbol -> { count, mono, avg }
   const add = (sym, count, monoPerAtom, avgPerAtom) => {

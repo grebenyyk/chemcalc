@@ -4,6 +4,11 @@
 // (computed by exponentiation-by-squaring). Specific-isotope ("tagged") atoms
 // contribute a single fixed mass, i.e. a delta that simply shifts the envelope.
 //
+// Fractional counts (non-stoichiometric formulas like Fe0.5O) are handled as a
+// statistical mixture over the expected composition: count = whole + fraction,
+// where the whole part is the usual self-convolution and the fraction convolves
+// with a two-point mixture — (1-f): no extra atom, f: one more atom.
+//
 // Every convolution step (a) merges peaks within `mergeTol` using an
 // intensity-weighted centroid (kills floating-point near-duplicate explosion) and
 // (b) prunes peaks below `threshold` of the running base peak (bounds peak count,
@@ -83,16 +88,38 @@ export function isotopicDistribution(parsed, opts = {}) {
       pattern = el.isotopes.map((iso) => ({ mass: iso.mass, intensity: iso.abundance }));
       patternCache.set(sym, pattern);
     }
-    dist = convolve(dist, powConvolve(pattern, count, o), o);
+    const whole = Math.floor(count + 1e-9);
+    dist = convolve(dist, powConvolve(pattern, whole, o), o);
+    const frac = count - whole;
+    if (frac > 1e-9)
+      dist = convolve(
+        dist,
+        [
+          { mass: 0, intensity: 1 - frac },
+          ...pattern.map((p) => ({ mass: p.mass, intensity: p.intensity * frac })),
+        ],
+        o
+      );
   }
 
-  // tagged atoms -> single fixed-mass offset
-  let offset = 0;
+  // tagged atoms -> fixed-mass deltas (a pure isotope has no distribution of its
+  // own). A fractional count becomes a statistical mixture: with probability
+  // frac the molecule carries one more tagged atom.
+  const tagTotals = new Map();
   for (const t of parsed.tagged) {
-    const m = isotopeMass(ELEMENTS[t.element], t.massNumber);
-    if (m !== null) offset += m * t.count;
+    const key = t.element + "|" + t.massNumber;
+    tagTotals.set(key, (tagTotals.get(key) || 0) + t.count);
   }
-  if (offset !== 0) for (const p of dist) p.mass += offset;
+  for (const [key, count] of tagTotals) {
+    const [sym, a] = key.split("|");
+    const m = isotopeMass(ELEMENTS[sym], Number(a));
+    if (m === null) continue;
+    const whole = Math.floor(count + 1e-9);
+    if (whole > 0) dist = convolve(dist, [{ mass: m * whole, intensity: 1 }], o);
+    const frac = count - whole;
+    if (frac > 1e-9)
+      dist = convolve(dist, [{ mass: 0, intensity: 1 - frac }, { mass: m, intensity: frac }], o);
+  }
 
   let maxI = 0;
   for (const p of dist) if (p.intensity > maxI) maxI = p.intensity;

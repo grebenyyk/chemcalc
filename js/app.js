@@ -15,6 +15,13 @@ let lastCharge = 0;
 function fmt(n, d = 6) {
   return Number.isFinite(n) ? n.toFixed(d) : "—";
 }
+// counts may be fractional (non-stoichiometric formulas); keep integers clean,
+// trim float noise (0.30000000000000004 -> 0.3)
+function fmtCount(n) {
+  if (!Number.isFinite(n)) return "—";
+  if (Number.isInteger(n)) return String(n);
+  return String(parseFloat(n.toFixed(6)));
+}
 function esc(s) {
   return String(s)
     .replace(/&/g, "&amp;")
@@ -34,9 +41,9 @@ function formulaHtml(parsed) {
     const tm = new Map();
     for (const t of parsed.tagged)
       if (t.element === sym) tm.set(t.massNumber, (tm.get(t.massNumber) || 0) + t.count);
-    for (const [a, c] of tm) html += `<sup>${a}</sup>${sym}${c !== 1 ? `<sub>${c}</sub>` : ""}`;
+    for (const [a, c] of tm) html += `<sup>${a}</sup>${sym}${c !== 1 ? `<sub>${fmtCount(c)}</sub>` : ""}`;
     const nc = parsed.counts[sym] || 0;
-    if (nc > 0) html += `${sym}${nc !== 1 ? `<sub>${nc}</sub>` : ""}`;
+    if (nc > 0) html += `${sym}${nc !== 1 ? `<sub>${fmtCount(nc)}</sub>` : ""}`;
   }
   if (parsed.charge) {
     const sign = parsed.charge > 0 ? "+" : "-";
@@ -50,8 +57,8 @@ function renderMasses(a) {
   const rows = [
     ["Molecular weight (average mass)", fmt(a.averageMass)],
     ["Monoisotopic mass", fmt(a.monoisotopicMass)],
-    ["Nominal mass", a.nominalMass],
-    ["Total atoms", a.totalAtoms],
+    ["Nominal mass", fmtCount(a.nominalMass)],
+    ["Total atoms", fmtCount(a.totalAtoms)],
     ["Charge", a.charge === 0 ? "0" : (a.charge > 0 ? "+" : "") + a.charge],
   ];
   if (a.mzMono !== null) rows.push(["m/z (monoisotopic)", fmt(a.mzMono)]);
@@ -65,7 +72,7 @@ function renderComposition(a) {
     .map(
       (c) =>
         `<tr><td class="l">${esc(c.symbol)} <span class="name">${esc(c.name)}</span></td>` +
-        `<td>${c.count}</td><td>${fmt(c.mass)}</td><td>${c.percent.toFixed(3)}</td></tr>`
+        `<td>${fmtCount(c.count)}</td><td>${fmt(c.mass)}</td><td>${c.percent.toFixed(3)}</td></tr>`
     )
     .join("");
 }

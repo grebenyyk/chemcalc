@@ -24,6 +24,34 @@ From a molecular formula it gives:
 | `CuSO4.5H2O` | hydrates / adducts (`.` `·` `∙` `*` join; the number after is a coefficient) |
 | `[NH4]+`, `SO4^2-`, `SO4 2+` | charges (affects m/z only) |
 | `13C6H12`, `2H2O` | specific-isotope labels (heavy water `2H2O` = D₂O) |
+| `Fe0.5O`, `(C2H4)0.6(C3H6)0.4`, `CuSO4·1/2H2O` | non-integer counts — decimals, fractions (see below) |
+
+## Non-integer counts
+
+Subscripts may be decimals or fractions — for non-stoichiometric / defect
+phases, polymer averages, and fractional hydrates:
+
+- `Fe0.5O`, `Mg0.5Fe0.5O` — decimal subscripts
+- `YBa2Cu3O6.5` — decimal at the end of a term
+- `(C2H4)0.6(C3H6)0.4` — fractional group multipliers
+- `CaSO4·1/2H2O` — fractional hydrate coefficient (a decimal like `CuSO4*2.5H2O`
+  works after any joiner)
+
+Fractional atoms are treated statistically (expected composition): the isotopic
+distribution of `Fe0.5O` is the O pattern convolved with a 50/50 mixture of
+with/without an extra Fe atom.
+
+**Dot ambiguity.** `.` is both a hydrate joiner and a decimal marker, so
+`digit.digit` is read as a decimal point only when
+
+- the integer part is 0 or 1 (`Fe0.5O`, `Co1.5O`), or
+- it follows a joiner (`CuSO4*2.5H2O`), or
+- no term can follow (`YBa2Cu3O6.5` at the end of the formula — a warning is
+  shown so the reading is visible).
+
+Otherwise it is a joiner: `CuSO4.5H2O` remains the pentahydrate. A decimal ≥ 2
+in mid-formula needs brackets: `(Fe2.5)O3`. Decimal commas are accepted
+(`Fe0,5O`).
 
 ## Files
 
@@ -39,4 +67,6 @@ js/
   elements.js       periodic-table + isotope data (generated; the foundation)
 data/
   build_elements.py one-time generator for js/elements.js (not needed at runtime)
+test/
+  smoke.mjs         node smoke tests (no deps); CI gate before deploy
 ```
