@@ -42,7 +42,11 @@ check("CaSO4.1/2H2O", "averageMass", 145.15, 0.02, "(via ambiguous dot -> fallba
 check("C8H10N4O2", "monoisotopicMass", 194.0804, 0.001); // caffeine
 check("C8H10N4O2", "averageMass", 194.19, 0.01);
 check("C6H12O6", "averageMass", 180.156, 0.01); // glucose
-check("CuSO4.5H2O", "averageMass", 249.68, 0.02); // pentahydrate via dot joiner
+check("CuSO4·5H2O", "averageMass", 249.68, 0.02); // pentahydrate via explicit joiner
+check("CuSO4.5H2O", "averageMass", 185.63, 0.05, "(dot = decimal now; warns)");
+check("O2.2(H2O)0.5", "averageMass", 44.21, 0.02); // O2.2 + 0.5 H2O
+check("O2.2(H2O)0.5", "totalAtoms", 3.7, 1e-9); // 2.2 + 1.5 atoms
+check("NaCl.H2O", "averageMass", 76.46, 0.05); // dot joiner without preceding digit
 check("[Co(NH3)6]Cl3", "averageMass", 267.47, 0.02);
 check("13C6H12", "monoisotopicMass", 90.114, 0.005); // isotope labels intact
 check("2H2O", "monoisotopicMass", 20.0231, 0.001); // D2O
@@ -50,11 +54,14 @@ const so4 = check("SO4^2-", "monoisotopicMass", 95.9517, 0.001);
 checkBool(Math.abs(so4.a.mzMono - 47.9764) < 0.001, "SO4^2- m/z = 47.9764");
 check("(P)22+", "charge", 22, 0, "charge parse unchanged");
 
-// --- warnings surface on ambiguous decimal ---
+// --- warnings surface where the hydrate reading is plausible ---
 const ybco = parseFormula("YBa2Cu3O6.5");
-checkBool(ybco.warnings.length === 1, "YBCO emits exactly one decimal-reading warning");
+checkBool(ybco.warnings.length === 0, "YBCO decimal is certain (no warning)");
 const pent = parseFormula("CuSO4.5H2O");
-checkBool(pent.warnings.length === 0, "pentahydrate emits no warning");
+checkBool(pent.warnings.length === 1, "CuSO4.5H2O warns (hydrate reading plausible)");
+checkBool(parseFormula("CuSO4·5H2O").warnings.length === 0, "explicit · joiner emits no warning");
+const o22 = parseFormula("O2.2(H2O)0.5");
+checkBool(o22.counts.O === 2.7 && o22.counts.H === 1, "O2.2(H2O)0.5 -> O 2.7, H 1");
 const fe25 = parseFormula("(Fe2.5)O3");
 checkBool(Math.abs(fe25.counts.Fe - 2.5) < 1e-9, "(Fe2.5)O3 -> Fe 2.5");
 

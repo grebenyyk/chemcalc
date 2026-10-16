@@ -17,16 +17,19 @@
 //
 // Disambiguation rules:
 //  * A number right AFTER a joiner is a stoichiometric coefficient for that term
-//    (so "CuSO4.5H2O" -> CuSO4 + 5 H2O).
+//    (so "CuSO4·5H2O" -> CuSO4 + 5 H2O).
 //  * A number anywhere else (including at the start) immediately before an element
 //    is an isotopic prefix, e.g. "13C6H12", "2H2O" (heavy water = D2O).
 //  * Charges use '^' anywhere, or a +/- form only when followed by end/joiner.
 //  * Charge affects m/z only, never the neutral mass.
 //  * Non-integer counts: "Fe0.5O", "(C2H4)0.6", "CuSO4·1/2H2O". A dot between
-//    two digit runs is a decimal point when the integer part is 0 or 1, when at
-//    a joiner-coefficient position, or when no term can follow (e.g. "O6.5" at
-//    the end); otherwise it is a hydrate joiner ("CuSO4.5H2O"). A fraction
-//    after the dot-digits ("SO4.1/2H2O") also reads as a joiner coefficient.
+//    two digit runs is ALWAYS a decimal point ("O2.2(H2O)0.5", "YBa2Cu3O6.5").
+//    Where the schoolbook hydrate reading is also plausible (a term follows the
+//    fractional digits and the integer part is > 1, as in "CuSO4.5H2O") the
+//    decimal is kept but a warning suggests the explicit "·"/"*" joiner.
+//    Exceptions: right after a joiner the dot is a decimal unconditionally
+//    ("CuSO4*2.5H2O"), and "SO4.1/2H2O" keeps the hemihydrate reading (a
+//    fraction after the dot-digits is a coefficient).
 
 import { ELEMENTS } from "./elements.js";
 
@@ -152,14 +155,13 @@ export function parseFormula(input) {
   // charge +1). Non-integer counts are accepted as decimals ("Fe0.5O") or
   // fractions ("1/2"); a decimal comma is normalised up front ("Fe0,5").
   //
-  // Dot ambiguity, digit.dot.digit (decimal point vs hydrate/adduct joiner):
-  // the dot is read as a decimal point when
-  //   * `coefPosition` — right after a joiner ("CuSO4*2.5H2O"), unambiguous, or
-  //   * the integer part is 0 or 1 ("Fe0.5O", "Co1.5O" — the common case), or
-  //   * nothing that could start a term follows the fractional digits
-  //     ("YBa2Cu3O6.5" at end of formula, "(Fe2.5)O3" before ")");
-  // otherwise the dot is left for the joiner branch: "CuSO4.5H2O" = pentahydrate.
-  // In the last-resort case a warning is emitted so the reading stays visible.
+  // Dot rule, digit.dot.digit: a dot between two digit runs is a DECIMAL POINT
+  // ("Fe0.5O", "O2.2(H2O)0.5", "YBa2Cu3O6.5"). Hydrate/adduct reading needs an
+  // explicit joiner ("CuSO4·5H2O"); where the schoolbook joiner reading is also
+  // plausible (a term follows the fractional digits and the integer part is
+  // > 1, as in "CuSO4.5H2O") the decimal is kept but a warning is shown, so the
+  // choice is never silent. Right after a joiner the dot is a decimal
+  // unconditionally ("CuSO4*2.5H2O").
   function readCount(coefPosition = false) {
     skipWs();
     const start = i;
@@ -173,16 +175,16 @@ export function parseFormula(input) {
     if (peek() === "." && isDigit(s[i + 1])) {
       let k = i + 1;
       while (k < s.length && isDigit(s[k])) k++;
-      // "4.1/2" reads as coefficient 1/2 after a joiner (hemihydrate), not as
-      // the odd product 4.1/2
+      // exception: "SO4.1/2H2O" — a fraction right after the dot-digits reads
+      // as a hemihydrate coefficient, not as the odd product 4.1/2
       const fracNext = s[k] === "/" && isDigit(s[k + 1]);
-      const asDecimal = coefPosition || (!fracNext && (intPart <= 1 || !termStartsAt(k)));
-      if (asDecimal) {
+      if (!fracNext) {
+        const hydratePlausible = termStartsAt(k);
         i = k;
         value = parseFloat(s.slice(start, i));
-        if (!coefPosition && intPart > 1)
+        if (!coefPosition && hydratePlausible && intPart > 1)
           warnings.push(
-            `Read "${s.slice(start, i)}" as a decimal subscript; use a "·" or "*" joiner if you meant a hydrate/adduct coefficient.`
+            `Read "${s.slice(start, i)}" as a decimal subscript; if you meant a hydrate/adduct ("CuSO4.5H2O" style), write the joiner as "·" or "*".`
           );
       }
     }

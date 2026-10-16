@@ -21,7 +21,7 @@ From a molecular formula it gives:
 | --- | --- |
 | `C8H10N4O2` | plain counts |
 | `(CH3)2`, `[Co(NH3)6]Cl3` | nested groups with multipliers |
-| `CuSO4.5H2O` | hydrates / adducts (`.` `·` `∙` `*` join; the number after is a coefficient) |
+| `CuSO4·5H2O`, `NaCl.H2O` | hydrates / adducts (`·` `∙` `*` `•` join; `.` only when no digit precedes it) |
 | `[NH4]+`, `SO4^2-`, `SO4 2+` | charges (affects m/z only) |
 | `13C6H12`, `2H2O` | specific-isotope labels (heavy water `2H2O` = D₂O) |
 | `Fe0.5O`, `(C2H4)0.6(C3H6)0.4`, `CuSO4·1/2H2O` | non-integer counts — decimals, fractions (see below) |
@@ -31,8 +31,7 @@ From a molecular formula it gives:
 Subscripts may be decimals or fractions — for non-stoichiometric / defect
 phases, polymer averages, and fractional hydrates:
 
-- `Fe0.5O`, `Mg0.5Fe0.5O` — decimal subscripts
-- `YBa2Cu3O6.5` — decimal at the end of a term
+- `Fe0.5O`, `Mg0.5Fe0.5O`, `O2.2(H2O)0.5` — decimal subscripts anywhere
 - `(C2H4)0.6(C3H6)0.4` — fractional group multipliers
 - `CaSO4·1/2H2O` — fractional hydrate coefficient (a decimal like `CuSO4*2.5H2O`
   works after any joiner)
@@ -41,17 +40,13 @@ Fractional atoms are treated statistically (expected composition): the isotopic
 distribution of `Fe0.5O` is the O pattern convolved with a 50/50 mixture of
 with/without an extra Fe atom.
 
-**Dot ambiguity.** `.` is both a hydrate joiner and a decimal marker, so
-`digit.digit` is read as a decimal point only when
-
-- the integer part is 0 or 1 (`Fe0.5O`, `Co1.5O`), or
-- it follows a joiner (`CuSO4*2.5H2O`), or
-- no term can follow (`YBa2Cu3O6.5` at the end of the formula — a warning is
-  shown so the reading is visible).
-
-Otherwise it is a joiner: `CuSO4.5H2O` remains the pentahydrate. A decimal ≥ 2
-in mid-formula needs brackets: `(Fe2.5)O3`. Decimal commas are accepted
-(`Fe0,5O`).
+**Dot rule.** A `.` between two digits is a decimal point. Write hydrates and
+adducts with an explicit joiner: `CuSO4·5H2O` or `CuSO4*5H2O`. The schoolbook
+spelling `CuSO4.5H2O` is therefore read as CuSO₄.₅H₂ — a warning is shown
+whenever that hydrate reading was also plausible, so the ambiguity is never
+silent. A `.` still joins when no digit precedes it (`NaCl.H2O`), and in
+`CaSO4.1/2H2O` the `1/2` after the dot is taken as the coefficient
+(hemihydrate). Decimal commas are accepted (`Fe0,5O`).
 
 ## Files
 
